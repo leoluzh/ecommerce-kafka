@@ -4,14 +4,14 @@ import java.util.Map;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 
-import com.lambdasys.ecommerce.commons.KafkaService;
+import com.lambdasys.ecommerce.commons.consumer.KafkaService;
 
 
 public class EmailService {
 
 	private static final String TOPIC_ECOMMERCE_SEND_EMAIL = "ECOMMERCE_SEND_EMAIL";
 
-	public static void main( String[] args ) {
+	public static void main( String[] args ) throws Exception {
 		var emailService = new EmailService();
 		try( var service = new KafkaService(
 				EmailService.class.getSimpleName() ,

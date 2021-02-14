@@ -1,19 +1,24 @@
-package com.lambdasys.ecommerce.commons;
+package com.lambdasys.ecommerce.commons.dispatcher;
 
 import java.io.Closeable;
 import java.util.Properties;
+import java.util.concurrent.Future;
 
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.serialization.StringSerializer;
+
+import com.lambdasys.ecommerce.commons.CorrelationId;
+import com.lambdasys.ecommerce.commons.Message;
 
 public class KafkaDispatcher<T> implements Closeable {
 	
-	private final KafkaProducer<String,T> producer;
+	private final KafkaProducer<String,Message<T>> producer;
 	
-	public KafkaDispatcher(){
+	public KafkaDispatcher( ){
 		this.producer = new KafkaProducer<>( properties() );
 	}
 	
@@ -29,8 +34,10 @@ public class KafkaDispatcher<T> implements Closeable {
 		}
 		return properties;
 	}
-	
-	public void send( String topic , String key , T value ) throws Exception {
+
+	public Future<RecordMetadata> sendAsync( String topic , String key , CorrelationId correlationId , T payload ) throws Exception {
+		//changed to suport correlation id and payload - used to backtraking
+		var value = new Message<>( correlationId.continueWith("_" + topic ) , payload );
 		var record = new ProducerRecord<>(topic, key , value);
 		Callback callback = ( data , ex ) -> {
 			if( ex != null ) {
@@ -43,7 +50,14 @@ public class KafkaDispatcher<T> implements Closeable {
 					data.offset() , 
 					data.timestamp() ));
 		};
-		producer.send(record,callback).get();
+		//writting values into topic ... and wait ack (writting in replicas?)...
+		return producer.send(record,callback);
+	}
+	
+	
+	public void send( String topic , String key , CorrelationId correlationId , T payload ) throws Exception {
+		var await = sendAsync( topic , key , correlationId , payload );
+		await.get();
 	}
 	
 	@Override

@@ -6,8 +6,10 @@ import java.util.concurrent.ExecutionException;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 
-import com.lambdasys.ecommerce.commons.KafkaDispatcher;
-import com.lambdasys.ecommerce.commons.KafkaService;
+import com.lambdasys.ecommerce.commons.CorrelationId;
+import com.lambdasys.ecommerce.commons.Message;
+import com.lambdasys.ecommerce.commons.consumer.KafkaService;
+import com.lambdasys.ecommerce.commons.dispatcher.KafkaDispatcher;
 
 public class FraudDetectorService {
 
@@ -17,7 +19,7 @@ public class FraudDetectorService {
 	
 	private final KafkaDispatcher<Order> orderDispatcher = new KafkaDispatcher<>();
 
-	public static void main( String[] args ) {
+	public static void main( String[] args ) throws Exception {
 		var fraudService = new FraudDetectorService();
         try (var service = new KafkaService<>(FraudDetectorService.class.getSimpleName(),
                 TOPIC_ECOMMERCE_NEW_ORDER,
@@ -28,7 +30,7 @@ public class FraudDetectorService {
         }
 	}
 
-    private void parse(ConsumerRecord<String, Order> record) throws ExecutionException, InterruptedException {
+    private void parse(ConsumerRecord<String, Message<Order>> record) throws Exception {
         System.out.println("------------------------------------------");
         System.out.println("Processing new order, checking for fraud");
         System.out.println(record.key());
@@ -41,14 +43,14 @@ public class FraudDetectorService {
             // ignoring
             e.printStackTrace();
         }
-        var order = record.value();
+        var order = record.value().getPayload();
         if(isFraud(order)) {
             // pretending that the fraud happens when the amount is >= 4500
             System.out.println("Order is a fraud!!!!!" + order);
-            orderDispatcher.send(TOPIC_ECOMMERCE_ORDER_REJECTED, order.getEmail(), order);
+            orderDispatcher.send(TOPIC_ECOMMERCE_ORDER_REJECTED, order.getEmail(), record.value().getId().continueWith(FraudDetectorService.class.getSimpleName()), order);
         } else {
             System.out.println("Approved: " + order);
-            orderDispatcher.send(TOPIC_ECOMMERCE_ORDER_APPROVED, order.getEmail(), order);
+            orderDispatcher.send(TOPIC_ECOMMERCE_ORDER_APPROVED, order.getEmail(), record.value().getId().continueWith(FraudDetectorService.class.getSimpleName()), order);
         }
 
     }

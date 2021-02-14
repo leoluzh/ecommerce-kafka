@@ -9,7 +9,8 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import com.lambdasys.ecommerce.commons.KafkaDispatcher;
+import com.lambdasys.ecommerce.commons.CorrelationId;
+import com.lambdasys.ecommerce.commons.dispatcher.KafkaDispatcher;
 
 @SuppressWarnings("serial")
 public class NewOrderServlet extends HttpServlet {
@@ -17,7 +18,6 @@ public class NewOrderServlet extends HttpServlet {
 	private static final String TOPIC_ECOMMERCE_SEND_EMAIL = "ECOMMERCE_SEND_EMAIL";
 	private static final String TOPIC_ECOMMERCE_NEW_ORDER = "ECOMMERCE_NEW_ORDER";
 	private final KafkaDispatcher<Order>  orderDispatcher = new KafkaDispatcher<>();
-	private final KafkaDispatcher<String> emailDispatcher = new KafkaDispatcher<>();
 	
   @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -30,11 +30,13 @@ public class NewOrderServlet extends HttpServlet {
 
             var orderId = UUID.randomUUID().toString();
 
+            //fast delegate pattern!!!
             var order = new Order(orderId, amount, email);
-            orderDispatcher.send(TOPIC_ECOMMERCE_NEW_ORDER, email, order);
+            orderDispatcher.send(TOPIC_ECOMMERCE_NEW_ORDER, email , new CorrelationId(NewOrderServlet.class.getSimpleName()) , order);
 
-            var emailCode = "Thank you for your order! We are processing your order!";
-            emailDispatcher.send(TOPIC_ECOMMERCE_SEND_EMAIL, email, emailCode);
+            //replaced with service-email-new-order
+            //var emailCode = "Thank you for your order! We are processing your order!";
+            //emailDispatcher.send(TOPIC_ECOMMERCE_SEND_EMAIL, email , new CorrelationId(NewOrderServlet.class.getSimpleName()), emailCode);
 
             System.out.println("New order sent successfully.");
             resp.setStatus(HttpServletResponse.SC_OK);
@@ -50,7 +52,6 @@ public class NewOrderServlet extends HttpServlet {
 	public void destroy() {
 		super.destroy();
 		orderDispatcher.close();
-		emailDispatcher.close();
 	}
 	
 }
