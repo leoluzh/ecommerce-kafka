@@ -13,5 +13,17 @@ public class Order {
         this.amount = amount;
         this.email = email;
     }	
-	
+    
+    public String getOrderId() {
+    	return this.orderId;
+    }
+    
+    public BigDecimal getAmount() {
+    	return this.amount;
+    }
+    
+    public String getEmail() {
+    	return this.email;
+    }
+    
 }

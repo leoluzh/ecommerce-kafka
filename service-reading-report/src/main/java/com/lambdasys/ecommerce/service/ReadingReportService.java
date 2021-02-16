@@ -3,31 +3,32 @@ package com.lambdasys.ecommerce.service;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Map;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 
 import com.lambdasys.ecommerce.commons.Message;
-import com.lambdasys.ecommerce.commons.consumer.KafkaService;
+import com.lambdasys.ecommerce.commons.consumer.ConsumerService;
+import com.lambdasys.ecommerce.commons.consumer.ServiceRunner;
 
-public class ReadingReportService {
+public class ReadingReportService implements ConsumerService<User> {
 
 	private static final String TOPIC_USER_GENERATE_READING_REPORT = "ECOMMERCE_USER_GENERATE_READING_REPORT";
 	private static final Path SOURCE = new File("src/main/resources/report.txt").toPath();
+	private static final Integer NUMBER_OF_THREADS = 5;
 	
 	public static void main( String[] args ) throws Exception {
-		var reportService = new ReadingReportService();
-		try( var service = new KafkaService<>(
-				ReadingReportService.class.getSimpleName() , 
-				TOPIC_USER_GENERATE_READING_REPORT ,
-				reportService::parse ,
-				User.class , 
-				Map.of())){
-			service.run();
-		}
+		new ServiceRunner<>(ReadingReportService::new).start(NUMBER_OF_THREADS);
 	}
 	
-    private void parse(ConsumerRecord<String, Message<User>> record) throws IOException {
+	public String getTopic() {
+		return TOPIC_USER_GENERATE_READING_REPORT;
+	}
+	
+	public String getConsumerGroup() {
+		return ReadingReportService.class.getSimpleName();
+	}
+	
+    public void parse(ConsumerRecord<String, Message<User>> record) throws IOException {
         System.out.println("------------------------------------------");
         System.out.println("Processing report for " + record.value());
 

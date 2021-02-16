@@ -1,5 +1,7 @@
 package com.lambdasys.ecommerce.service;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -9,38 +11,36 @@ import java.util.UUID;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 
 import com.lambdasys.ecommerce.commons.Message;
+import com.lambdasys.ecommerce.commons.consumer.ConsumerService;
 import com.lambdasys.ecommerce.commons.consumer.KafkaService;
+import com.lambdasys.ecommerce.commons.consumer.ServiceRunner;
+import com.lambdasys.ecommerce.database.LocalDataBase;
 
-public class CreateUserService {
+public class CreateUserService implements ConsumerService<Order> , Closeable {
 
     private static final String TOPIC_ECOMMERCE_NEW_ORDER = "ECOMMERCE_NEW_ORDER";
-	private final Connection connection;
+    private static final Integer NUMBER_OF_THREADS = 5 ;
+	private LocalDataBase database;
 
-    CreateUserService() throws SQLException {
-        String url = "jdbc:sqlite:target/users_database.db";
-        connection = DriverManager.getConnection(url);
-        try {
-            connection.createStatement().execute("CREATE TABLE USERS (" +
-                    "uuid VARCHAR(200) PRIMARY KEY ," +
-                    "email VARCHAR(200))");
-        } catch(SQLException ex) {
-            // be careful, the sql could be wrong, be reallllly careful
-            ex.printStackTrace();
-        }
+    public CreateUserService() throws Exception {
+    	this.database = new LocalDataBase("users_database");
+    	this.database.createIfNotExists("CREATE TABLE USERS ( uuid varchar(200) PRIMARY KEY , email VARCHAR(200) )");
     }
+    
 
     public static void main(String[] args) throws Exception {
-        var createUserService = new CreateUserService();
-        try (var service = new KafkaService<>(CreateUserService.class.getSimpleName(),
-                TOPIC_ECOMMERCE_NEW_ORDER,
-                createUserService::parse,
-                Order.class,
-                Map.of())) {
-            service.run();
-        }
+    	new ServiceRunner<>(CreateUserService::new).start(NUMBER_OF_THREADS);
+    }
+    
+    public String getTopic() {
+    	return TOPIC_ECOMMERCE_NEW_ORDER;
+    }
+    
+    public String getConsumerGroup() {
+    	return CreateUserService.class.getSimpleName();
     }
 
-    private void parse(ConsumerRecord<String, Message<Order>> record) throws SQLException {
+    public void parse(ConsumerRecord<String, Message<Order>> record) throws SQLException {
         System.out.println("------------------------------------------");
         System.out.println("Processing new order, checking for new user");
         System.out.println(record.value());
@@ -51,20 +51,21 @@ public class CreateUserService {
     }
 
     private void insertNewUser(String email) throws SQLException {
-        var insert = connection.prepareStatement("INSERT INTO USERS (uuid, email) " +
-                "values (?,?)");
-        insert.setString(1, UUID.randomUUID().toString());
-        insert.setString(2, email);
-        insert.execute();
-        System.out.println("Usuário uuid e " + email + " adicionado");
+        String uuid = UUID.randomUUID().toString();
+    	database.update("INSERT INTO USERS (uuid, email) " +
+                "values (?,?)" , uuid , email );
+        System.out.println("User with uuid: " + uuid  + " and email: " + email  + " created");
     }
 
     private boolean isNewUser(String email) throws SQLException {
-        var exists = connection.prepareStatement("SELECT uuid FROM USERS " +
-                "WHERE email = ? LIMIT 1");
-        exists.setString(1, email);
-        var results = exists.executeQuery();
-        return !results.next();
-    }	
-	
+    	var results = database.query("SELECT uuid FROM USERS WHERE email = ? LIMIT 1", email);
+    	return !results.next();
+    }
+
+
+	@Override
+	public void close() throws IOException {
+		this.database.close();
+	}	
+    	
 }

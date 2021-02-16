@@ -1,51 +1,48 @@
 package com.lambdasys.ecommerce.service;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 
-import com.lambdasys.ecommerce.commons.CorrelationId;
 import com.lambdasys.ecommerce.commons.Message;
-import com.lambdasys.ecommerce.commons.consumer.KafkaService;
+import com.lambdasys.ecommerce.commons.consumer.ConsumerService;
+import com.lambdasys.ecommerce.commons.consumer.ServiceRunner;
 import com.lambdasys.ecommerce.commons.dispatcher.KafkaDispatcher;
+import com.lambdasys.ecommerce.database.LocalDataBase;
 
-public class BatchSendMessageService {
+public class BatchSendMessageService implements ConsumerService<String> , Closeable {
 
     private static final String TOPIC_SEND_MESSAGE_TO_ALL_USERS = "ECOMMERCE_SEND_MESSAGE_TO_ALL_USERS";
-	private final Connection connection;
     private final KafkaDispatcher<User> userDispatcher = new KafkaDispatcher<>();
+    private static final Integer NUMBER_OF_THREADS = 5;
+    private LocalDataBase localdatabase;
 
-    public BatchSendMessageService() throws SQLException {
-        String url = "jdbc:sqlite:target/users_database.db";
-        connection = DriverManager.getConnection(url);
-        try {
-            connection.createStatement().execute("CREATE TABLE USERS (" +
-                    "uuid VARCHAR(200) PRIMARY KEY ," +
-                    "email VARCHAR(200))");
-        } catch(SQLException ex) {
-            // be careful, the sql could be wrong, be reallllly careful
-            ex.printStackTrace();
-        }
+    public BatchSendMessageService() throws Exception{
+    	this.localdatabase = new LocalDataBase("users_database");
+    	this.localdatabase.createIfNotExists("CREATE TABLE USERS (" +
+                " uuid VARCHAR(200) PRIMARY KEY , " +
+                " email VARCHAR(200) )");
     }
 
     public static void main(String[] args) throws Exception {
-        var batchService = new BatchSendMessageService();
-        try (var service = new KafkaService<>(BatchSendMessageService.class.getSimpleName(),
-                TOPIC_SEND_MESSAGE_TO_ALL_USERS,
-                batchService::parse,
-                String.class,
-                Map.of())) {
-            service.run();
-        }
+    	new ServiceRunner<>(BatchSendMessageService::new).start(NUMBER_OF_THREADS);
+    }
+    
+    public String getTopic() {
+    	return TOPIC_SEND_MESSAGE_TO_ALL_USERS;
     }
 
-    private void parse(ConsumerRecord<String, Message<String>> record) throws Exception {
+    public String getConsumerGroup() {
+    	return BatchSendMessageService.class.getSimpleName();
+    }
+    
+    public void parse(ConsumerRecord<String, Message<String>> record) throws Exception {
         System.out.println("------------------------------------------");
         System.out.println("Processing new batch");
         var message = record.value();
@@ -58,12 +55,18 @@ public class BatchSendMessageService {
     }
 
 	private List<User> getUsers() throws SQLException{
-		ResultSet result = connection.prepareStatement("SELECT uuid FROM USERS").executeQuery();
+		ResultSet result = this.localdatabase.query("SELECT uuid FROM USERS");
 		List<User> users = new ArrayList<>();
 		while( result.next() ) {
 			users.add( new User( result.getString(1) ) );
 		}
 		return users;
 	}
+
+	@Override
+	public void close() throws IOException {
+		this.localdatabase.close();
+	}
+
 	
 }

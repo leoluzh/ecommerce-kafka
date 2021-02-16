@@ -27,21 +27,32 @@ public class NewOrderServlet extends HttpServlet {
             // showing how to use http as a starting point
             var email = req.getParameter("email");
             var amount = new BigDecimal(req.getParameter("amount"));
+            //var orderId = UUID.randomUUID().toString();            
+            //uuid was delegate - client generate uuid
+            var orderId = req.getParameter("uuid");
 
-            var orderId = UUID.randomUUID().toString();
+            var order = new Order(orderId, amount, email);      
+            try( var database = new OrdersDataBase() ){
+        
+	            if( database.saveNew( order ) ) {
+		            //fast delegate pattern!!!
+		            orderDispatcher.send(TOPIC_ECOMMERCE_NEW_ORDER, email , new CorrelationId(NewOrderServlet.class.getSimpleName()) , order);
+		
+		            //replaced with service-email-new-order
+		            //var emailCode = "Thank you for your order! We are processing your order!";
+		            //emailDispatcher.send(TOPIC_ECOMMERCE_SEND_EMAIL, email , new CorrelationId(NewOrderServlet.class.getSimpleName()), emailCode);
+		
+		            System.out.println("New order sent successfully");
+		            resp.setStatus(HttpServletResponse.SC_OK);
+		            resp.getWriter().println("New order sent");
+	            }else {
+		            System.out.println("Old received");
+		            resp.setStatus(HttpServletResponse.SC_OK);
+		            resp.getWriter().println("Old order received");
+	            }
 
-            //fast delegate pattern!!!
-            var order = new Order(orderId, amount, email);
-            orderDispatcher.send(TOPIC_ECOMMERCE_NEW_ORDER, email , new CorrelationId(NewOrderServlet.class.getSimpleName()) , order);
-
-            //replaced with service-email-new-order
-            //var emailCode = "Thank you for your order! We are processing your order!";
-            //emailDispatcher.send(TOPIC_ECOMMERCE_SEND_EMAIL, email , new CorrelationId(NewOrderServlet.class.getSimpleName()), emailCode);
-
-            System.out.println("New order sent successfully.");
-            resp.setStatus(HttpServletResponse.SC_OK);
-            resp.getWriter().println("New order sent");
-
+            }
+            
         } catch (Exception e) {
             throw new ServletException(e);
 		}

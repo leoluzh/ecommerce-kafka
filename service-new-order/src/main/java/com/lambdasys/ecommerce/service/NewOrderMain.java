@@ -26,6 +26,7 @@ public class NewOrderMain {
                     var order = new Order(orderId, amount, email);
                     orderDispatcher.send(TOPIC_ECOMMERCE_NEW_ORDER, email , id , order);
 
+                    //replace 
                     //var emailCode = "Thank you for your order! We are processing your order!";
                     //emailDispatcher.send(TOPIC_ECOMMERCE_SEND_EMAIL, email, id , emailCode);
                 }

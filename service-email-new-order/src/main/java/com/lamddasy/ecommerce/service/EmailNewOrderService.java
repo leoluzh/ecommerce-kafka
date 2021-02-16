@@ -1,32 +1,33 @@
 package com.lamddasy.ecommerce.service;
 
-import java.util.Map;
-
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 
 import com.lambdasys.ecommerce.commons.Message;
-import com.lambdasys.ecommerce.commons.consumer.KafkaService;
+import com.lambdasys.ecommerce.commons.consumer.ConsumerService;
+import com.lambdasys.ecommerce.commons.consumer.ServiceRunner;
 import com.lambdasys.ecommerce.commons.dispatcher.KafkaDispatcher;
 
-public class EmailNewOrderService {
+public class EmailNewOrderService implements ConsumerService<Order> {
 
 	private static final String TOPIC_ECOMMERCE_NEW_ORDER = "ECOMMERCE_NEW_ORDER";
 	private static final String TOPIC_ECOMMERCE_SEND_EMAIL = "ECOMMERCE_SEND_EMAIL" ;
+	private static final Integer NUMBER_OF_THREADS = 5 ;
 	
 	private final KafkaDispatcher<String> emailDispatcher = new KafkaDispatcher<>();
 
 	public static void main( String[] args ) throws Exception {
-		var emailService = new EmailNewOrderService();
-        try (var service = new KafkaService<>(EmailNewOrderService.class.getSimpleName(),
-                TOPIC_ECOMMERCE_NEW_ORDER,
-                emailService::parse,
-                Order.class,
-                Map.of())) {
-            service.run();
-        }
+		new ServiceRunner<>( EmailNewOrderService::new ).start( NUMBER_OF_THREADS );
 	}
 
-    private void parse(ConsumerRecord<String, Message<Order>> record) throws Exception {
+	public String getTopic() {
+		return TOPIC_ECOMMERCE_NEW_ORDER;
+	}
+	
+	public String getConsumerGroup() {
+		return EmailNewOrderService.class.getSimpleName();
+	}
+	
+    public void parse(ConsumerRecord<String, Message<Order>> record) throws Exception {
         System.out.println("------------------------------------------");
         System.out.println("Processing new order, preparing email");
         System.out.println(record.key());

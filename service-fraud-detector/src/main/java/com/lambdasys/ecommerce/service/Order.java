@@ -14,6 +14,10 @@ public class Order {
         this.email = email;
     }
 
+    public String getOrderId() {
+    	return this.orderId;
+    }
+    
     public BigDecimal getAmount() {
         return amount;
     }

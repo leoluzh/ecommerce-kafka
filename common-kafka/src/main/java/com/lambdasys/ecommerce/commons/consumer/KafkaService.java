@@ -28,21 +28,21 @@ public class KafkaService<T> implements Closeable {
 	private final ConsumerFunction parse;
 	
 	@SuppressWarnings("rawtypes")
-	public KafkaService( String groupId , String topic , ConsumerFunction<T> parse , Class<T> type , Map<String,String> properties ) {
-		this(parse,groupId,type,properties);
+	public KafkaService( String groupId , String topic , ConsumerFunction<T> parse , Map<String,String> properties ) {
+		this(parse,groupId,properties);
 		consumer.subscribe(Collections.singletonList(topic));
 	}
 
 	@SuppressWarnings("rawtypes")
-	public KafkaService( String groupId , Pattern topic , ConsumerFunction<T> parse , Class<T> type , Map<String,String> properties ) {
-		this(parse,groupId,type,properties);
+	public KafkaService( String groupId , Pattern topic , ConsumerFunction<T> parse , Map<String,String> properties ) {
+		this(parse,groupId,properties);
 		consumer.subscribe(topic);
 	}
 	
 	@SuppressWarnings("rawtypes")
-	private KafkaService( ConsumerFunction<T> parse , String groupId , Class<T> type , Map<String,String> properties ) {
+	private KafkaService( ConsumerFunction<T> parse , String groupId , Map<String,String> properties ) {
 		this.parse = parse;
-		this.consumer = new KafkaConsumer<>( properties( type , groupId , properties ) );
+		this.consumer = new KafkaConsumer<>( properties( groupId , properties ) );
 	}
 	
 	@SuppressWarnings("unchecked")	
@@ -69,7 +69,7 @@ public class KafkaService<T> implements Closeable {
 		}while( true );
 	}
 	
-    private Properties properties(Class<T> type, String groupId, Map<String, String> overrideProperties) {
+    private Properties properties( String groupId, Map<String, String> overrideProperties) {
         var properties = new Properties();
 		try {
 			properties.load(KafkaDispatcher.class.getClassLoader().getResourceAsStream("application.properties"));
@@ -77,6 +77,8 @@ public class KafkaService<T> implements Closeable {
 	        properties.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, UUID.randomUUID().toString());
 	        //number of off-set readings per poll/fetch in a topic.
 	        properties.setProperty(ConsumerConfig.MAX_POLL_RECORDS_CONFIG,"1");
+	        //set configure strategy to reading ... latest/earliest
+	        properties.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,"earliest");
 	        properties.putAll(overrideProperties);
 		}catch(Exception ex) {	
 	        properties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092");
